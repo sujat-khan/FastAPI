@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
 from typing import Literal,Annotated
 import pickle
 import pandas as pd
@@ -8,7 +8,9 @@ import pandas as pd
 #import the ML model
 import os
 
-model_path = 'model.pkl' if os.path.exists('model.pkl') else 'Model-Serving/model.pkl'
+model_dir = os.path.dirname(os.path.abspath(__file__))
+model_subdir_path = os.path.join(model_dir, 'model', 'model.pkl')
+model_path = model_subdir_path if os.path.exists(model_subdir_path) else os.path.join(model_dir, 'model.pkl')
 with open(model_path, 'rb') as f:
     model = pickle.load(f)
 
@@ -36,6 +38,13 @@ class UserInput(BaseModel):
     city:Annotated[str, Field(..., description='city of the user')]
     occupation: Annotated[Literal[ 'retired',     'freelancer',        'student', 'government_job',
  'business_owner',     'unemployed',    'private_job'], Field(..., description='occupation of the user')]
+
+    @field_validator('city')
+    @classmethod
+    def normalize_city(cls, v:str)->str:
+        v= v.strip().title()
+        return v
+
 
     @computed_field
     @property
@@ -72,6 +81,18 @@ class UserInput(BaseModel):
             return 2
         else:
             return 3
+
+#human readable
+@app.get('/')
+def home():
+    return {'message':'Insurance Premium Prediction APi'}
+
+#machine readable
+@app.get('/health')
+def health_check():
+    return {
+        'status': 'OKK'
+    }
 
 @app.post('/predict')
 def predict_premium(data:UserInput):
